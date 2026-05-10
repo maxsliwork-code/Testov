@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Нейро-ассистент</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #238636;
+      --accent-hover: #2ea043;
+      --user-bubble: #1f6feb;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --danger: #da3633;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+    }
+
+    /* ── Layout ── */
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+
+    #key-wrap { display: flex; gap: 6px; flex: 1; max-width: 400px; }
+    #api-key {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      min-width: 0;
+    }
+    #api-key:focus { border-color: var(--user-bubble); }
+
+    .btn {
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+    .btn-danger:hover { background: var(--danger); color: #fff; }
+
+    /* ── Chat ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .msg-row { display: flex; }
+    .msg-row.user { justify-content: flex-end; }
+    .msg-row.model { justify-content: flex-start; }
+
+    .bubble {
+      max-width: min(75%, 600px);
+      padding: 10px 14px;
+      border-radius: 16px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+    }
+    .msg-row.user .bubble {
+      background: var(--user-bubble);
+      border-bottom-right-radius: 4px;
+    }
+    .msg-row.model .bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .typing::after {
+      content: '▌';
+      animation: blink 0.7s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Empty state ── */
+    #empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+    #empty svg { opacity: 0.3; }
+    #empty p { font-size: 14px; }
+
+    /* ── Input area ── */
+    #input-area {
+      padding: 12px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #msg {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      resize: none;
+      max-height: 120px;
+      line-height: 1.4;
+    }
+    #msg:focus { border-color: var(--user-bubble); }
+    #send-btn {
+      padding: 10px 18px;
+      border-radius: 12px;
+      background: var(--user-bubble);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      align-self: flex-end;
+      transition: opacity 0.15s;
+    }
+    #send-btn:hover { opacity: 0.85; }
+    #send-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #333;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      opacity: 0;
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Server URL config ── */
+    #config-panel {
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    #server-url {
+      flex: 1;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    @media (max-width: 500px) {
+      #header h1 { display: none; }
+      .bubble { max-width: 90%; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>🤖 Нейро-ассистент</h1>
+    <div id="key-wrap">
+      <input id="api-key" type="password" placeholder="API ключ (na_...)" autocomplete="off" />
+      <button class="btn btn-ghost" onclick="clearHistory()">🗑</button>
+    </div>
+  </div>
+
+  <div id="config-panel">
+    <input id="server-url" type="text" placeholder="URL сервера (например http://192.168.1.100:8000)" />
+    <button class="btn btn-ghost" onclick="saveConfig()">💾</button>
+  </div>
+
+  <div id="chat">
+    <div id="empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <p>Введи API ключ и начни диалог</p>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <textarea id="msg" rows="1" placeholder="Написать сообщение..." onkeydown="onKey(event)"></textarea>
+    <button id="send-btn" onclick="send()">➤</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // ── Config ──────────────────────────────────────────────────────────────
+  let BASE_URL = localStorage.getItem('server_url') || '';
+
+  function saveConfig() {
+    const url = $('server-url').value.trim().replace(/\/$/, '');
+    localStorage.setItem('server_url', url);
+    BASE_URL = url;
+    toast('Сервер сохранён: ' + (url || 'относительный путь'));
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    $('server-url').value = BASE_URL;
+    const savedKey = localStorage.getItem('api_key') || '';
+    $('api-key').value = savedKey;
+  });
+
+  $('api-key').addEventListener('change', () => {
+    localStorage.setItem('api_key', $('api-key').value.trim());
+  });
+
+  // ── Chat state ───────────────────────────────────────────────────────────
+  let isStreaming = false;
+
+  function getKey() {
+    const k = $('api-key').value.trim();
+    if (!k) { toast('Введи API ключ!'); return null; }
+    return k;
+  }
+
+  function addMessage(role, text, typing = false) {
+    const empty = $('empty');
+    if (empty) empty.remove();
+
+    const chat = $('chat');
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + role;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble' + (typing ? ' typing' : '');
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+    return bubble;
+  }
+
+  async function send() {
+    if (isStreaming) return;
+    const key = getKey();
+    if (!key) return;
+    const textarea = $('msg');
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    isStreaming = true;
+    $('send-btn').disabled = true;
+
+    addMessage('user', text);
+    const botBubble = addMessage('model', '', true);
+
+    const url = (BASE_URL || '') + '/chat';
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key
+        },
+        body: JSON.stringify({ message: text })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        botBubble.classList.remove('typing');
+        botBubble.textContent = '❌ ' + (err.detail || 'Ошибка сервера');
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const raw = decoder.decode(value, { stream: true });
+        const lines = raw.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') { botBubble.classList.remove('typing'); continue; }
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              result = '❌ ' + parsed.error;
+            } else if (parsed.text) {
+              result += parsed.text;
+            }
+            botBubble.textContent = result;
+            $('chat').scrollTop = $('chat').scrollHeight;
+          } catch {}
+        }
+      }
+      botBubble.classList.remove('typing');
+
+    } catch (e) {
+      botBubble.classList.remove('typing');
+      botBubble.textContent = '❌ ' + e.message;
+    } finally {
+      isStreaming = false;
+      $('send-btn').disabled = false;
+      textarea.focus();
+    }
+  }
+
+  function onKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+    // auto-resize
+    setTimeout(() => {
+      const t = $('msg');
+      t.style.height = 'auto';
+      t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+    }, 0);
+  }
+
+  async function clearHistory() {
+    const key = getKey();
+    if (!key) return;
+    if (!confirm('Очистить историю?')) return;
+    const url = (BASE_URL || '') + '/chat/history';
+    try {
+      await fetch(url, {
+        method: 'DELETE',
+        headers: { 'x-api-key': key }
+      });
+      $('chat').innerHTML = '<div id="empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><p>История очищена</p></div>';
+      toast('История очищена');
+    } catch(e) { toast('Ошибка: ' + e.message); }
+  }
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>
