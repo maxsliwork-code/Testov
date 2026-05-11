@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import google.generativeai as genai
 import sqlite3, os, uuid, json
 from dotenv import load_dotenv
